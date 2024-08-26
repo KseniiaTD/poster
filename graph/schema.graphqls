@@ -1,0 +1,105 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+scalar Time
+scalar Void
+
+type User {
+  id: ID!
+  login: String!
+  createDate: Time!
+  isDeleted: Boolean!
+  name: String!
+  surname: String!
+  phone: String!
+  email: String!
+  posts: [Post]
+}
+
+type Post {
+  id: ID!
+  title: String!
+  authorId: ID!
+  body: String!
+  createDate: Time!
+  updDate: Time!
+  isCommented: Boolean!
+  likes: Int
+  dislikes: Int
+}
+
+type Comment {
+  id: ID!
+  parentId: ID
+  postId: ID!
+  authorId: ID!
+  body: String!
+  login: String!
+  createDate: Time!
+  updDate: Time!
+  likes: Int
+  dislikes: Int
+  cnt: Int
+}
+
+
+type Query {
+  posts(userId: Int!): [Post!]
+  comments(postId: Int!, commentId: Int, page: Int, perPage: Int): [Comment!]
+}
+type Rating {
+  likes: Int!
+  dislikes: Int!
+}
+
+input NewPostLikeInput {
+  like: Boolean!
+  authorId: ID!
+  postId: ID!
+}
+
+input NewCommentLikeInput {
+  like: Boolean!
+  authorId: ID!
+  commentId: ID!
+}
+
+input NewPostInput{
+  title: String!
+  authorId: ID!
+  body: String!
+  isCommented: Boolean!
+}
+
+input UpdPostInput{
+  postId: ID!
+  title: String
+  body: String
+  isCommented: Boolean
+}
+
+input NewCommentInput {
+  parentId: ID
+  postId: ID!
+  authorId: ID!
+  body: String!
+}
+
+input UpdCommentInput {
+  Id: ID!
+  body: String!
+}
+
+type Mutation {
+  createPost(newPost: NewPostInput!): ID
+  updatePost(post: UpdPostInput!): ID
+  deletePost(id: ID!): ID
+  createComment(newComment: NewCommentInput!): ID
+  updateComment(comment: UpdCommentInput!): ID
+  deleteComment(id: ID!): ID
+  addPostLike(likes: NewPostLikeInput!): Void 
+  addCommentLike(likes: NewCommentLikeInput!): Void 
+  getPostLikes(post: ID!): Rating
+  getCommentLikes(comment: ID!): Rating
+}

@@ -1,0 +1,5 @@
+port: 5432
+internal_port: 5432
+database: "db_poster"
+user: "pguser"
+password: "pgpwd"

@@ -6,12 +6,63 @@ package graph
 
 import (
 	"context"
-	"poster/graph/model"
+	"errors"
+	"fmt"
+	"log"
+	"regexp"
 	"strconv"
+	"time"
+
+	"github.com/KseniiaTD/poster/graph/model"
 )
+
+// CreateUser is the resolver for the createUser field.
+func (r *mutationResolver) CreateUser(ctx context.Context, newUser model.NewUserInput) (*string, error) {
+	if len(newUser.Login) < 3 {
+		return nil, errors.New("login is too short")
+	}
+
+	if len(newUser.Name) < 2 {
+		return nil, errors.New("name is too short")
+	}
+
+	if len(newUser.Surname) < 2 {
+		return nil, errors.New("surname is too short")
+	}
+
+	rePhone := regexp.MustCompile(`^((8|\+7)[\- ]?)?(\(?\d{3}\)?[\- ]?)?[\d\- ]{7,10}$`)
+	ok := rePhone.MatchString(newUser.Phone)
+
+	if !ok {
+		return nil, errors.New("phone number is wrong")
+	}
+
+	reEmail := regexp.MustCompile(`/^((([0-9A-Za-z]{1}[-0-9A-z\.]{1,}[0-9A-Za-z]{1})|([0-9А-Яа-я]{1}[-0-9А-я\.]{1,}[0-9А-Яа-я]{1}))@([-A-Za-z]{1,}\.){1,2}[-A-Za-z]{2,})$/u`)
+	ok = reEmail.MatchString(newUser.Email)
+
+	if !ok {
+		return nil, errors.New("email is wrong")
+	}
+
+	id, err := r.DB.CreateUser(ctx, newUser)
+	if err != nil {
+		return nil, err
+	}
+
+	idStr := strconv.Itoa(id)
+	return &idStr, nil
+}
 
 // CreatePost is the resolver for the createPost field.
 func (r *mutationResolver) CreatePost(ctx context.Context, newPost model.NewPostInput) (*string, error) {
+	if len(newPost.Body) < 3 {
+		return nil, errors.New("post is too short")
+	}
+
+	if len(newPost.Title) < 2 {
+		return nil, errors.New("title is too short")
+	}
+
 	id, err := r.DB.CreatePost(ctx, newPost)
 	if err != nil {
 		return nil, err
@@ -23,6 +74,18 @@ func (r *mutationResolver) CreatePost(ctx context.Context, newPost model.NewPost
 
 // UpdatePost is the resolver for the updatePost field.
 func (r *mutationResolver) UpdatePost(ctx context.Context, post model.UpdPostInput) (*string, error) {
+	if post.Body != nil {
+		if len(*post.Body) < 3 {
+			return nil, errors.New("post is too short")
+		}
+	}
+
+	if post.Title != nil {
+		if len(*post.Title) < 2 {
+			return nil, errors.New("title is too short")
+		}
+	}
+
 	id, err := r.DB.UpdatePost(ctx, post)
 	if err != nil {
 		return nil, err
@@ -48,8 +111,34 @@ func (r *mutationResolver) DeletePost(ctx context.Context, id string) (*string, 
 	return &idStr, nil
 }
 
+// CreateSubscription is the resolver for the createSubscription field.
+func (r *mutationResolver) CreateSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error) {
+	ok, err := r.DB.CreateSubscription(ctx, subscr)
+	if err != nil {
+		return nil, err
+	}
+	return ok, nil
+}
+
+// DeleteSubscription is the resolver for the deleteSubscription field.
+func (r *mutationResolver) DeleteSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error) {
+	ok, err := r.DB.DeleteSubscription(ctx, subscr)
+	if err != nil {
+		return nil, err
+	}
+	return ok, nil
+}
+
 // CreateComment is the resolver for the createComment field.
 func (r *mutationResolver) CreateComment(ctx context.Context, newComment model.NewCommentInput) (*string, error) {
+	if len(newComment.Body) < 3 {
+		return nil, errors.New("comment is too short")
+	}
+
+	if len(newComment.Body) > 2000 {
+		return nil, errors.New("comment is too long")
+	}
+
 	id, err := r.DB.CreateComment(ctx, newComment)
 	if err != nil {
 		return nil, err
@@ -61,6 +150,14 @@ func (r *mutationResolver) CreateComment(ctx context.Context, newComment model.N
 
 // UpdateComment is the resolver for the updateComment field.
 func (r *mutationResolver) UpdateComment(ctx context.Context, comment model.UpdCommentInput) (*string, error) {
+	if len(comment.Body) < 3 {
+		return nil, errors.New("comment is too short")
+	}
+
+	if len(comment.Body) > 2000 {
+		return nil, errors.New("comment is too long")
+	}
+
 	id, err := r.DB.UpdateComment(ctx, comment)
 	if err != nil {
 		return nil, err
@@ -190,11 +287,53 @@ func (r *queryResolver) Comments(ctx context.Context, postID int, commentID *int
 	return comments, nil
 }
 
+// CheckComments is the resolver for the checkComments field.
+func (r *subscriptionResolver) CheckComments(ctx context.Context, subscr model.Subscr) (<-chan int, error) {
+	ch := make(chan int)
+
+	err := r.DB.CheckSubscription(ctx, subscr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+
+		defer close(ch)
+
+		for {
+
+			time.Sleep(1 * time.Minute)
+			fmt.Println("Tick")
+
+			cnt, err := r.DB.GetCntNewCommentsForSubscriber(ctx, subscr)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+
+			case ch <- cnt:
+
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

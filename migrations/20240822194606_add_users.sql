@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS public.users
 (
-    id serial NOT NULL,
+    id serial,
     login text NOT NULL,
     create_date timestamp WITHOUT time zone NOT NULL DEFAULT now(),
     is_deleted boolean NOT NULL DEFAULT false,

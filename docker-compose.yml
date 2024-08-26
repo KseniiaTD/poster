@@ -4,8 +4,8 @@ services:
   postgres:
     image: postgres:13.3
     environment:
-      POSTGRES_DB: "db_poster"
-      POSTGRES_USER: "pguser"
-      POSTGRES_PASSWORD: "pgpwd"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - ${POSTGRES_PORT}:5432

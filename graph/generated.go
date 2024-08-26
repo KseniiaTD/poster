@@ -8,7 +8,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"poster/graph/model"
+	"io"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/KseniiaTD/poster/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -42,6 +43,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -63,16 +65,19 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddCommentLike  func(childComplexity int, likes model.NewCommentLikeInput) int
-		AddPostLike     func(childComplexity int, likes model.NewPostLikeInput) int
-		CreateComment   func(childComplexity int, newComment model.NewCommentInput) int
-		CreatePost      func(childComplexity int, newPost model.NewPostInput) int
-		DeleteComment   func(childComplexity int, id string) int
-		DeletePost      func(childComplexity int, id string) int
-		GetCommentLikes func(childComplexity int, comment string) int
-		GetPostLikes    func(childComplexity int, post string) int
-		UpdateComment   func(childComplexity int, comment model.UpdCommentInput) int
-		UpdatePost      func(childComplexity int, post model.UpdPostInput) int
+		AddCommentLike     func(childComplexity int, likes model.NewCommentLikeInput) int
+		AddPostLike        func(childComplexity int, likes model.NewPostLikeInput) int
+		CreateComment      func(childComplexity int, newComment model.NewCommentInput) int
+		CreatePost         func(childComplexity int, newPost model.NewPostInput) int
+		CreateSubscription func(childComplexity int, subscr model.SubscrInput) int
+		CreateUser         func(childComplexity int, newUser model.NewUserInput) int
+		DeleteComment      func(childComplexity int, id string) int
+		DeletePost         func(childComplexity int, id string) int
+		DeleteSubscription func(childComplexity int, subscr model.SubscrInput) int
+		GetCommentLikes    func(childComplexity int, comment string) int
+		GetPostLikes       func(childComplexity int, post string) int
+		UpdateComment      func(childComplexity int, comment model.UpdCommentInput) int
+		UpdatePost         func(childComplexity int, post model.UpdPostInput) int
 	}
 
 	Post struct {
@@ -97,6 +102,10 @@ type ComplexityRoot struct {
 		Likes    func(childComplexity int) int
 	}
 
+	Subscription struct {
+		CheckComments func(childComplexity int, subscr model.Subscr) int
+	}
+
 	User struct {
 		CreateDate func(childComplexity int) int
 		Email      func(childComplexity int) int
@@ -111,9 +120,12 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
+	CreateUser(ctx context.Context, newUser model.NewUserInput) (*string, error)
 	CreatePost(ctx context.Context, newPost model.NewPostInput) (*string, error)
 	UpdatePost(ctx context.Context, post model.UpdPostInput) (*string, error)
 	DeletePost(ctx context.Context, id string) (*string, error)
+	CreateSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error)
+	DeleteSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error)
 	CreateComment(ctx context.Context, newComment model.NewCommentInput) (*string, error)
 	UpdateComment(ctx context.Context, comment model.UpdCommentInput) (*string, error)
 	DeleteComment(ctx context.Context, id string) (*string, error)
@@ -125,6 +137,9 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Posts(ctx context.Context, userID int) ([]*model.Post, error)
 	Comments(ctx context.Context, postID int, commentID *int, page *int, perPage *int) ([]*model.Comment, error)
+}
+type SubscriptionResolver interface {
+	CheckComments(ctx context.Context, subscr model.Subscr) (<-chan int, error)
 }
 
 type executableSchema struct {
@@ -271,6 +286,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreatePost(childComplexity, args["newPost"].(model.NewPostInput)), true
 
+	case "Mutation.createSubscription":
+		if e.complexity.Mutation.CreateSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createSubscription_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateSubscription(childComplexity, args["subscr"].(model.SubscrInput)), true
+
+	case "Mutation.createUser":
+		if e.complexity.Mutation.CreateUser == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createUser_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateUser(childComplexity, args["newUser"].(model.NewUserInput)), true
+
 	case "Mutation.deleteComment":
 		if e.complexity.Mutation.DeleteComment == nil {
 			break
@@ -294,6 +333,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeletePost(childComplexity, args["id"].(string)), true
+
+	case "Mutation.deleteSubscription":
+		if e.complexity.Mutation.DeleteSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteSubscription_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteSubscription(childComplexity, args["subscr"].(model.SubscrInput)), true
 
 	case "Mutation.getCommentLikes":
 		if e.complexity.Mutation.GetCommentLikes == nil {
@@ -444,6 +495,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Rating.Likes(childComplexity), true
 
+	case "Subscription.checkComments":
+		if e.complexity.Subscription.CheckComments == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_checkComments_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.CheckComments(childComplexity, args["subscr"].(model.Subscr)), true
+
 	case "User.createDate":
 		if e.complexity.User.CreateDate == nil {
 			break
@@ -519,6 +582,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputNewCommentLikeInput,
 		ec.unmarshalInputNewPostInput,
 		ec.unmarshalInputNewPostLikeInput,
+		ec.unmarshalInputNewUserInput,
+		ec.unmarshalInputSubscr,
+		ec.unmarshalInputSubscrInput,
 		ec.unmarshalInputUpdCommentInput,
 		ec.unmarshalInputUpdPostInput,
 	)
@@ -564,6 +630,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
 			data.MarshalGQL(&buf)
 
 			return &graphql.Response{
@@ -643,7 +726,7 @@ func (ec *executionContext) field_Mutation_addCommentLike_args(ctx context.Conte
 	var arg0 model.NewCommentLikeInput
 	if tmp, ok := rawArgs["likes"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("likes"))
-		arg0, err = ec.unmarshalNNewCommentLikeInput2posterᚋgraphᚋmodelᚐNewCommentLikeInput(ctx, tmp)
+		arg0, err = ec.unmarshalNNewCommentLikeInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewCommentLikeInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -658,7 +741,7 @@ func (ec *executionContext) field_Mutation_addPostLike_args(ctx context.Context,
 	var arg0 model.NewPostLikeInput
 	if tmp, ok := rawArgs["likes"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("likes"))
-		arg0, err = ec.unmarshalNNewPostLikeInput2posterᚋgraphᚋmodelᚐNewPostLikeInput(ctx, tmp)
+		arg0, err = ec.unmarshalNNewPostLikeInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewPostLikeInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -673,7 +756,7 @@ func (ec *executionContext) field_Mutation_createComment_args(ctx context.Contex
 	var arg0 model.NewCommentInput
 	if tmp, ok := rawArgs["newComment"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("newComment"))
-		arg0, err = ec.unmarshalNNewCommentInput2posterᚋgraphᚋmodelᚐNewCommentInput(ctx, tmp)
+		arg0, err = ec.unmarshalNNewCommentInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewCommentInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -688,12 +771,42 @@ func (ec *executionContext) field_Mutation_createPost_args(ctx context.Context, 
 	var arg0 model.NewPostInput
 	if tmp, ok := rawArgs["newPost"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("newPost"))
-		arg0, err = ec.unmarshalNNewPostInput2posterᚋgraphᚋmodelᚐNewPostInput(ctx, tmp)
+		arg0, err = ec.unmarshalNNewPostInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewPostInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
 	args["newPost"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createSubscription_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.SubscrInput
+	if tmp, ok := rawArgs["subscr"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subscr"))
+		arg0, err = ec.unmarshalNSubscrInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐSubscrInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["subscr"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewUserInput
+	if tmp, ok := rawArgs["newUser"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("newUser"))
+		arg0, err = ec.unmarshalNNewUserInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewUserInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["newUser"] = arg0
 	return args, nil
 }
 
@@ -724,6 +837,21 @@ func (ec *executionContext) field_Mutation_deletePost_args(ctx context.Context, 
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteSubscription_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.SubscrInput
+	if tmp, ok := rawArgs["subscr"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subscr"))
+		arg0, err = ec.unmarshalNSubscrInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐSubscrInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["subscr"] = arg0
 	return args, nil
 }
 
@@ -763,7 +891,7 @@ func (ec *executionContext) field_Mutation_updateComment_args(ctx context.Contex
 	var arg0 model.UpdCommentInput
 	if tmp, ok := rawArgs["comment"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
-		arg0, err = ec.unmarshalNUpdCommentInput2posterᚋgraphᚋmodelᚐUpdCommentInput(ctx, tmp)
+		arg0, err = ec.unmarshalNUpdCommentInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐUpdCommentInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -778,7 +906,7 @@ func (ec *executionContext) field_Mutation_updatePost_args(ctx context.Context, 
 	var arg0 model.UpdPostInput
 	if tmp, ok := rawArgs["post"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("post"))
-		arg0, err = ec.unmarshalNUpdPostInput2posterᚋgraphᚋmodelᚐUpdPostInput(ctx, tmp)
+		arg0, err = ec.unmarshalNUpdPostInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐUpdPostInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -856,6 +984,21 @@ func (ec *executionContext) field_Query_posts_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["userId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_checkComments_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.Subscr
+	if tmp, ok := rawArgs["subscr"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subscr"))
+		arg0, err = ec.unmarshalNSubscr2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐSubscr(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["subscr"] = arg0
 	return args, nil
 }
 
@@ -1369,6 +1512,58 @@ func (ec *executionContext) fieldContext_Comment_cnt(_ context.Context, field gr
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createUser(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateUser(rctx, fc.Args["newUser"].(model.NewUserInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOID2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createUser_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createPost(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_createPost(ctx, field)
 	if err != nil {
@@ -1519,6 +1714,110 @@ func (ec *executionContext) fieldContext_Mutation_deletePost(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deletePost_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createSubscription(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateSubscription(rctx, fc.Args["subscr"].(model.SubscrInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOID2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteSubscription(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteSubscription(rctx, fc.Args["subscr"].(model.SubscrInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOID2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1810,7 +2109,7 @@ func (ec *executionContext) _Mutation_getPostLikes(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.Rating)
 	fc.Result = res
-	return ec.marshalORating2ᚖposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
+	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_getPostLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1868,7 +2167,7 @@ func (ec *executionContext) _Mutation_getCommentLikes(ctx context.Context, field
 	}
 	res := resTmp.(*model.Rating)
 	fc.Result = res
-	return ec.marshalORating2ᚖposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
+	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_getCommentLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2316,7 +2615,7 @@ func (ec *executionContext) _Query_posts(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.([]*model.Post)
 	fc.Result = res
-	return ec.marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPostᚄ(ctx, field.Selections, res)
+	return ec.marshalOPost2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPostᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_posts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2388,7 +2687,7 @@ func (ec *executionContext) _Query_comments(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.Comment)
 	fc.Result = res
-	return ec.marshalOComment2ᚕᚖposterᚋgraphᚋmodelᚐCommentᚄ(ctx, field.Selections, res)
+	return ec.marshalOComment2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐCommentᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_comments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2652,6 +2951,75 @@ func (ec *executionContext) fieldContext_Rating_dislikes(_ context.Context, fiel
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_checkComments(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_checkComments(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().CheckComments(rctx, fc.Args["subscr"].(model.Subscr))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNInt2int(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_checkComments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_checkComments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -3033,7 +3401,7 @@ func (ec *executionContext) _User_posts(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.([]*model.Post)
 	fc.Result = res
-	return ec.marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPost(ctx, field.Selections, res)
+	return ec.marshalOPost2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_posts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5020,6 +5388,129 @@ func (ec *executionContext) unmarshalInputNewPostLikeInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputNewUserInput(ctx context.Context, obj interface{}) (model.NewUserInput, error) {
+	var it model.NewUserInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"login", "name", "surname", "phone", "email"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "login":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("login"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Login = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "surname":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surname"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surname = data
+		case "phone":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phone"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Phone = data
+		case "email":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Email = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSubscr(ctx context.Context, obj interface{}) (model.Subscr, error) {
+	var it model.Subscr
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"userId", "postId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		case "postId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("postId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PostID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSubscrInput(ctx context.Context, obj interface{}) (model.SubscrInput, error) {
+	var it model.SubscrInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"userId", "postId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		case "postId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("postId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PostID = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdCommentInput(ctx context.Context, obj interface{}) (model.UpdCommentInput, error) {
 	var it model.UpdCommentInput
 	asMap := map[string]interface{}{}
@@ -5206,6 +5697,10 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createUser":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createUser(ctx, field)
+			})
 		case "createPost":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createPost(ctx, field)
@@ -5217,6 +5712,14 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deletePost":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deletePost(ctx, field)
+			})
+		case "createSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createSubscription(ctx, field)
+			})
+		case "deleteSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSubscription(ctx, field)
 			})
 		case "createComment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
@@ -5472,6 +5975,26 @@ func (ec *executionContext) _Rating(ctx context.Context, sel ast.SelectionSet, o
 	}
 
 	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		ec.Errorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "checkComments":
+		return ec._Subscription_checkComments(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
 }
 
 var userImplementors = []string{"User"}
@@ -5891,7 +6414,7 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNComment2ᚖposterᚋgraphᚋmodelᚐComment(ctx context.Context, sel ast.SelectionSet, v *model.Comment) graphql.Marshaler {
+func (ec *executionContext) marshalNComment2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐComment(ctx context.Context, sel ast.SelectionSet, v *model.Comment) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5931,27 +6454,32 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNNewCommentInput2posterᚋgraphᚋmodelᚐNewCommentInput(ctx context.Context, v interface{}) (model.NewCommentInput, error) {
+func (ec *executionContext) unmarshalNNewCommentInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewCommentInput(ctx context.Context, v interface{}) (model.NewCommentInput, error) {
 	res, err := ec.unmarshalInputNewCommentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNNewCommentLikeInput2posterᚋgraphᚋmodelᚐNewCommentLikeInput(ctx context.Context, v interface{}) (model.NewCommentLikeInput, error) {
+func (ec *executionContext) unmarshalNNewCommentLikeInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewCommentLikeInput(ctx context.Context, v interface{}) (model.NewCommentLikeInput, error) {
 	res, err := ec.unmarshalInputNewCommentLikeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNNewPostInput2posterᚋgraphᚋmodelᚐNewPostInput(ctx context.Context, v interface{}) (model.NewPostInput, error) {
+func (ec *executionContext) unmarshalNNewPostInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewPostInput(ctx context.Context, v interface{}) (model.NewPostInput, error) {
 	res, err := ec.unmarshalInputNewPostInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNNewPostLikeInput2posterᚋgraphᚋmodelᚐNewPostLikeInput(ctx context.Context, v interface{}) (model.NewPostLikeInput, error) {
+func (ec *executionContext) unmarshalNNewPostLikeInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewPostLikeInput(ctx context.Context, v interface{}) (model.NewPostLikeInput, error) {
 	res, err := ec.unmarshalInputNewPostLikeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNPost2ᚖposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v *model.Post) graphql.Marshaler {
+func (ec *executionContext) unmarshalNNewUserInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐNewUserInput(ctx context.Context, v interface{}) (model.NewUserInput, error) {
+	res, err := ec.unmarshalInputNewUserInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPost2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v *model.Post) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5976,6 +6504,16 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNSubscr2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐSubscr(ctx context.Context, v interface{}) (model.Subscr, error) {
+	res, err := ec.unmarshalInputSubscr(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSubscrInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐSubscrInput(ctx context.Context, v interface{}) (model.SubscrInput, error) {
+	res, err := ec.unmarshalInputSubscrInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
 	res, err := graphql.UnmarshalTime(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5991,12 +6529,12 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) unmarshalNUpdCommentInput2posterᚋgraphᚋmodelᚐUpdCommentInput(ctx context.Context, v interface{}) (model.UpdCommentInput, error) {
+func (ec *executionContext) unmarshalNUpdCommentInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐUpdCommentInput(ctx context.Context, v interface{}) (model.UpdCommentInput, error) {
 	res, err := ec.unmarshalInputUpdCommentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNUpdPostInput2posterᚋgraphᚋmodelᚐUpdPostInput(ctx context.Context, v interface{}) (model.UpdPostInput, error) {
+func (ec *executionContext) unmarshalNUpdPostInput2githubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐUpdPostInput(ctx context.Context, v interface{}) (model.UpdPostInput, error) {
 	res, err := ec.unmarshalInputUpdPostInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -6280,7 +6818,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOComment2ᚕᚖposterᚋgraphᚋmodelᚐCommentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Comment) graphql.Marshaler {
+func (ec *executionContext) marshalOComment2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐCommentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Comment) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6307,7 +6845,7 @@ func (ec *executionContext) marshalOComment2ᚕᚖposterᚋgraphᚋmodelᚐComme
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNComment2ᚖposterᚋgraphᚋmodelᚐComment(ctx, sel, v[i])
+			ret[i] = ec.marshalNComment2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐComment(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6359,7 +6897,7 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v []*model.Post) graphql.Marshaler {
+func (ec *executionContext) marshalOPost2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v []*model.Post) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6386,7 +6924,7 @@ func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPost(ctx
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOPost2ᚖposterᚋgraphᚋmodelᚐPost(ctx, sel, v[i])
+			ret[i] = ec.marshalOPost2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6400,7 +6938,7 @@ func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPost(ctx
 	return ret
 }
 
-func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPostᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Post) graphql.Marshaler {
+func (ec *executionContext) marshalOPost2ᚕᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPostᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Post) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6427,7 +6965,7 @@ func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPostᚄ(
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNPost2ᚖposterᚋgraphᚋmodelᚐPost(ctx, sel, v[i])
+			ret[i] = ec.marshalNPost2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6447,14 +6985,14 @@ func (ec *executionContext) marshalOPost2ᚕᚖposterᚋgraphᚋmodelᚐPostᚄ(
 	return ret
 }
 
-func (ec *executionContext) marshalOPost2ᚖposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v *model.Post) graphql.Marshaler {
+func (ec *executionContext) marshalOPost2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v *model.Post) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Post(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalORating2ᚖposterᚋgraphᚋmodelᚐRating(ctx context.Context, sel ast.SelectionSet, v *model.Rating) graphql.Marshaler {
+func (ec *executionContext) marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx context.Context, sel ast.SelectionSet, v *model.Rating) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

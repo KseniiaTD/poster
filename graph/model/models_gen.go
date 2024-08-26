@@ -49,6 +49,14 @@ type NewPostLikeInput struct {
 	PostID   string `json:"postId"`
 }
 
+type NewUserInput struct {
+	Login   string `json:"login"`
+	Name    string `json:"name"`
+	Surname string `json:"surname"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
+}
+
 type Post struct {
 	ID          string    `json:"id"`
 	Title       string    `json:"title"`
@@ -67,6 +75,19 @@ type Query struct {
 type Rating struct {
 	Likes    int `json:"likes"`
 	Dislikes int `json:"dislikes"`
+}
+
+type Subscr struct {
+	UserID string `json:"userId"`
+	PostID string `json:"postId"`
+}
+
+type SubscrInput struct {
+	UserID string `json:"userId"`
+	PostID string `json:"postId"`
+}
+
+type Subscription struct {
 }
 
 type UpdCommentInput struct {

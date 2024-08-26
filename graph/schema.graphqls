@@ -65,6 +65,14 @@ input NewCommentLikeInput {
   commentId: ID!
 }
 
+input NewUserInput{
+  login: String!
+  name: String!
+  surname:String!
+  phone: String!
+  email: String!
+}
+
 input NewPostInput{
   title: String!
   authorId: ID!
@@ -77,6 +85,11 @@ input UpdPostInput{
   title: String
   body: String
   isCommented: Boolean
+}
+
+input SubscrInput{
+  userId: ID!
+  postId: ID!
 }
 
 input NewCommentInput {
@@ -92,9 +105,12 @@ input UpdCommentInput {
 }
 
 type Mutation {
+  createUser(newUser: NewUserInput!): ID
   createPost(newPost: NewPostInput!): ID
   updatePost(post: UpdPostInput!): ID
   deletePost(id: ID!): ID
+  createSubscription(subscr: SubscrInput!): ID
+  deleteSubscription(subscr: SubscrInput!): ID
   createComment(newComment: NewCommentInput!): ID
   updateComment(comment: UpdCommentInput!): ID
   deleteComment(id: ID!): ID
@@ -102,4 +118,13 @@ type Mutation {
   addCommentLike(likes: NewCommentLikeInput!): Void 
   getPostLikes(post: ID!): Rating
   getCommentLikes(comment: ID!): Rating
+}
+
+input Subscr {
+  userId: ID!
+  postId: ID!
+}
+
+type Subscription{
+  checkComments(subscr: Subscr!): Int!
 }

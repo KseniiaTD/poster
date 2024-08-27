@@ -2,16 +2,16 @@ package database
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/KseniiaTD/poster/config"
 	"github.com/KseniiaTD/poster/internal/database/common"
 	"github.com/KseniiaTD/poster/internal/database/inmemory"
 	"github.com/KseniiaTD/poster/internal/database/postgres"
 )
 
-func New(isInMemory bool) (common.Database, error) {
+func New(isInMemory bool, cfg config.Config) (common.Database, error) {
 	if !isInMemory {
-		dsn := getDSN()
+		dsn := getDSN(cfg)
 
 		return postgres.New(dsn)
 	}
@@ -19,11 +19,11 @@ func New(isInMemory bool) (common.Database, error) {
 	return inmemory.New(), nil
 }
 
-func getDSN() string {
+func getDSN(cfg config.Config) string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("POSTGRES_HOST"),
-		os.Getenv("POSTGRES_PORT"),
-		os.Getenv("POSTGRES_USER"),
-		os.Getenv("POSTGRES_PASSWORD"),
-		os.Getenv("POSTGRES_DB"))
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.User,
+		cfg.Password,
+		cfg.DB)
 }

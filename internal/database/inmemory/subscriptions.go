@@ -23,6 +23,7 @@ func (db *inMemoryDB) CreateSubscription(ctx context.Context, subscr model.Subsc
 
 	db.mu.Lock()
 
+	var id int
 	p, ok := db.subscriptions[post]
 	if !ok {
 
@@ -31,11 +32,15 @@ func (db *inMemoryDB) CreateSubscription(ctx context.Context, subscr model.Subsc
 			subsribers: map[int]subscription{},
 		}
 
+		id = db.subscriptionId
+		db.subscriptionId++
+
 		sub := subscription{
 			createDate:  time.Now(),
 			updDate:     time.Now(),
 			isDeleted:   false,
 			userId:      user,
+			id:          id,
 			commentList: []int{},
 		}
 		postS.subsribers[user] = sub
@@ -44,24 +49,30 @@ func (db *inMemoryDB) CreateSubscription(ctx context.Context, subscr model.Subsc
 	} else {
 		s, ok := p.subsribers[user]
 		if !ok {
+
+			id = db.subscriptionId
+			db.subscriptionId++
+
 			sub := subscription{
 				createDate:  time.Now(),
 				updDate:     time.Now(),
 				isDeleted:   false,
 				userId:      user,
+				id:          id,
 				commentList: []int{},
 			}
 			p.subsribers[user] = sub
 		} else {
 			s.updDate = time.Now()
 			s.isDeleted = false
+			id = s.id
 			p.subsribers[user] = s
 		}
 		db.subscriptions[post] = p
 	}
 	db.mu.Unlock()
 
-	str := "ok"
+	str := strconv.Itoa(id)
 	return &str, nil
 }
 
@@ -78,6 +89,9 @@ func (db *inMemoryDB) DeleteSubscription(ctx context.Context, subscr model.Subsc
 	}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	var id int
 	p, ok := db.subscriptions[post]
 	if !ok {
 
@@ -90,14 +104,14 @@ func (db *inMemoryDB) DeleteSubscription(ctx context.Context, subscr model.Subsc
 		} else {
 			s.updDate = time.Now()
 			s.isDeleted = true
+			id = s.id
 			s.commentList = []int{}
 			p.subsribers[user] = s
 		}
 		db.subscriptions[post] = p
 	}
-	db.mu.Unlock()
 
-	str := "ok"
+	str := strconv.Itoa(id)
 	return &str, nil
 }
 
@@ -113,6 +127,8 @@ func (db *inMemoryDB) CheckSubscription(ctx context.Context, subscr model.Subscr
 	}
 
 	db.mu.RLock()
+	defer db.mu.RUnlock()
+
 	p, ok := db.subscriptions[post]
 	if !ok {
 
@@ -126,7 +142,6 @@ func (db *inMemoryDB) CheckSubscription(ctx context.Context, subscr model.Subscr
 			}
 		}
 	}
-	db.mu.RUnlock()
 
 	return nil
 }
@@ -143,6 +158,7 @@ func (db *inMemoryDB) GetCntNewCommentsForSubscriber(ctx context.Context, subscr
 	}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
 
 	subscrPost, ok := db.subscriptions[post]
 	if !ok {
@@ -159,7 +175,6 @@ func (db *inMemoryDB) GetCntNewCommentsForSubscriber(ctx context.Context, subscr
 	subscriber.commentList = []int{}
 	subscrPost.subsribers[user] = subscriber
 	db.subscriptions[post] = subscrPost
-	db.mu.Unlock()
 
 	return commentsCnt, nil
 

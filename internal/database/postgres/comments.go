@@ -23,8 +23,12 @@ func (db *postgresDB) CreateComment(ctx context.Context, newComment model.NewCom
 
 	commentId := row.Int32
 
-	insertNewCommentStmt := `INSERT INTO public.new_comments(post_id, comment_id) VALUES ($1, $2)`
-	_, err = tx.Query(insertNewCommentStmt, newComment.PostID, commentId)
+	insertNewCommentStmt := `INSERT INTO public.new_comments(subscription_id, comment_id) 
+							 SELECT s.id,
+							 	    $1
+							 FROM public.subscriptions s
+							 WHERE s.is_deleted = false AND s.post_id = $2`
+	_, err = tx.Query(insertNewCommentStmt, commentId, newComment.PostID)
 	if err != nil {
 		return 0, err
 	}

@@ -47,6 +47,8 @@ type Comment {
 type Query {
   posts(userId: Int!): [Post!]
   comments(postId: Int!, commentId: Int, page: Int, perPage: Int): [Comment!]
+  getPostLikes(post: ID!): Rating
+  getCommentLikes(comment: ID!): Rating
 }
 type Rating {
   likes: Int!
@@ -116,8 +118,6 @@ type Mutation {
   deleteComment(id: ID!): ID
   addPostLike(likes: NewPostLikeInput!): Void 
   addCommentLike(likes: NewCommentLikeInput!): Void 
-  getPostLikes(post: ID!): Rating
-  getCommentLikes(comment: ID!): Rating
 }
 
 input Subscr {

@@ -21,8 +21,11 @@ CREATE TABLE IF NOT EXISTS public.subscriptions
         NOT VALID
 );
 
-CREATE UNIQUE INDEX sub_post_user 
+CREATE UNIQUE INDEX ind_uniq_sub_post_user 
 ON public.subscriptions (post_id, user_id);
+
+CREATE INDEX ind_comment_by_post_likes
+ON public.subscriptions (user_id);
 
 ALTER TABLE IF EXISTS public.subscriptions
     OWNER to pguser;

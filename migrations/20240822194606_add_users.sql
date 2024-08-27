@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS public.users
 
 ALTER TABLE IF EXISTS public.users
     OWNER to pguser;
+
+CREATE UNIQUE INDEX ind_login
+ON public.users (login);
 -- +goose StatementEnd
 
 -- +goose Down

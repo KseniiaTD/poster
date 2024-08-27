@@ -19,6 +19,12 @@ CREATE TABLE IF NOT EXISTS public.post_likes
         NOT VALID
 );
 
+CREATE INDEX ind_author_by_post_likes
+ON public.post_likes (author_id);
+
+CREATE INDEX ind_post_by_post_likes
+ON public.post_likes (post_id);
+
 ALTER TABLE IF EXISTS public.post_likes
     OWNER to pguser;
 -- +goose StatementEnd

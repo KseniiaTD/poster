@@ -37,7 +37,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, newUser model.NewUser
 		return nil, errors.New("phone number is wrong")
 	}
 
-	reEmail := regexp.MustCompile(`/^((([0-9A-Za-z]{1}[-0-9A-z\.]{1,}[0-9A-Za-z]{1})|([0-9А-Яа-я]{1}[-0-9А-я\.]{1,}[0-9А-Яа-я]{1}))@([-A-Za-z]{1,}\.){1,2}[-A-Za-z]{2,})$/u`)
+	reEmail := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+.+.[a-zA-Z]{2,4}$`)
 	ok = reEmail.MatchString(newUser.Email)
 
 	if !ok {
@@ -113,20 +113,56 @@ func (r *mutationResolver) DeletePost(ctx context.Context, id string) (*string, 
 
 // CreateSubscription is the resolver for the createSubscription field.
 func (r *mutationResolver) CreateSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error) {
-	ok, err := r.DB.CreateSubscription(ctx, subscr)
+	userId, err := strconv.Atoi(subscr.UserID)
 	if err != nil {
 		return nil, err
 	}
-	return ok, nil
+
+	if userId <= 0 {
+		return nil, errors.New("user not found")
+	}
+
+	postId, err := strconv.Atoi(subscr.PostID)
+	if err != nil {
+		return nil, err
+	}
+
+	if postId <= 0 {
+		return nil, errors.New("post not found")
+	}
+
+	id, err := r.DB.CreateSubscription(ctx, subscr)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
 // DeleteSubscription is the resolver for the deleteSubscription field.
 func (r *mutationResolver) DeleteSubscription(ctx context.Context, subscr model.SubscrInput) (*string, error) {
-	ok, err := r.DB.DeleteSubscription(ctx, subscr)
+	userId, err := strconv.Atoi(subscr.UserID)
 	if err != nil {
 		return nil, err
 	}
-	return ok, nil
+
+	if userId <= 0 {
+		return nil, errors.New("user not found")
+	}
+
+	postId, err := strconv.Atoi(subscr.PostID)
+	if err != nil {
+		return nil, err
+	}
+
+	if postId <= 0 {
+		return nil, errors.New("post not found")
+	}
+
+	id, err := r.DB.DeleteSubscription(ctx, subscr)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
 // CreateComment is the resolver for the createComment field.
@@ -137,6 +173,24 @@ func (r *mutationResolver) CreateComment(ctx context.Context, newComment model.N
 
 	if len(newComment.Body) > 2000 {
 		return nil, errors.New("comment is too long")
+	}
+
+	postId, err := strconv.Atoi(newComment.PostID)
+	if err != nil {
+		return nil, err
+	}
+
+	if postId <= 0 {
+		return nil, errors.New("invalid postId")
+	}
+
+	authorId, err := strconv.Atoi(newComment.AuthorID)
+	if err != nil {
+		return nil, err
+	}
+
+	if authorId <= 0 {
+		return nil, errors.New("invalid authorId")
 	}
 
 	id, err := r.DB.CreateComment(ctx, newComment)
@@ -190,12 +244,20 @@ func (r *mutationResolver) AddPostLike(ctx context.Context, likes model.NewPostL
 		return nil, err
 	}
 
+	if authorID <= 0 {
+		return nil, errors.New("user not found")
+	}
+
 	postID, err := strconv.Atoi(likes.PostID)
 	if err != nil {
 		return nil, err
 	}
 
-	err = r.DB.UpdPostLikes(ctx, authorID, postID, likes.Like)
+	if postID <= 0 {
+		return nil, errors.New("post not found")
+	}
+
+	err = r.DB.UpdPostLikes(ctx, postID, authorID, likes.Like)
 
 	return nil, err
 }
@@ -207,46 +269,22 @@ func (r *mutationResolver) AddCommentLike(ctx context.Context, likes model.NewCo
 		return nil, err
 	}
 
+	if authorID <= 0 {
+		return nil, errors.New("user not found")
+	}
+
 	commentID, err := strconv.Atoi(likes.CommentID)
 	if err != nil {
 		return nil, err
 	}
 
+	if commentID <= 0 {
+		return nil, errors.New("comment not found")
+	}
+
 	err = r.DB.UpdCommentLikes(ctx, authorID, commentID, likes.Like)
 
 	return nil, err
-}
-
-// GetPostLikes is the resolver for the getPostLikes field.
-func (r *mutationResolver) GetPostLikes(ctx context.Context, post string) (*model.Rating, error) {
-	postID, err := strconv.Atoi(post)
-	if err != nil {
-		return nil, err
-	}
-
-	var rating model.Rating
-	rating.Likes, rating.Dislikes, err = r.DB.GetPostLikes(ctx, postID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rating, nil
-}
-
-// GetCommentLikes is the resolver for the getCommentLikes field.
-func (r *mutationResolver) GetCommentLikes(ctx context.Context, comment string) (*model.Rating, error) {
-	commentID, err := strconv.Atoi(comment)
-	if err != nil {
-		return nil, err
-	}
-
-	var rating model.Rating
-	rating.Likes, rating.Dislikes, err = r.DB.GetCommentLikes(ctx, commentID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rating, nil
 }
 
 // Posts is the resolver for the posts field.
@@ -285,6 +323,38 @@ func (r *queryResolver) Comments(ctx context.Context, postID int, commentID *int
 	}
 
 	return comments, nil
+}
+
+// GetPostLikes is the resolver for the getPostLikes field.
+func (r *queryResolver) GetPostLikes(ctx context.Context, post string) (*model.Rating, error) {
+	postID, err := strconv.Atoi(post)
+	if err != nil {
+		return nil, err
+	}
+
+	var rating model.Rating
+	rating.Likes, rating.Dislikes, err = r.DB.GetPostLikes(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rating, nil
+}
+
+// GetCommentLikes is the resolver for the getCommentLikes field.
+func (r *queryResolver) GetCommentLikes(ctx context.Context, comment string) (*model.Rating, error) {
+	commentID, err := strconv.Atoi(comment)
+	if err != nil {
+		return nil, err
+	}
+
+	var rating model.Rating
+	rating.Likes, rating.Dislikes, err = r.DB.GetCommentLikes(ctx, commentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rating, nil
 }
 
 // CheckComments is the resolver for the checkComments field.

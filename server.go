@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/KseniiaTD/poster/config"
 	"github.com/KseniiaTD/poster/graph"
 
 	"github.com/KseniiaTD/poster/internal/database"
@@ -13,7 +14,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/joho/godotenv"
 )
 
 const defaultPort = "8080"
@@ -21,18 +21,18 @@ const defaultPort = "8080"
 var withInMemoryDB = flag.Bool("m", false, "run with in-memory database")
 
 func main() {
-	err := godotenv.Load("./config/config.env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	flag.Parse()
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
 	}
 
-	db, err := database.New(*withInMemoryDB)
+	cfg, err := config.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db, err := database.New(*withInMemoryDB, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -131,14 +131,14 @@ func (db *postgresDB) GetPosts(ctx context.Context, userId int) ([]*model.Post, 
 				  LEFT JOIN public.post_likes c ON p.id = c.post_id
 				  WHERE p.author_id  = $1
 				        AND p.is_deleted = false
-				  ORDER BY p.upd_date DESC
 			      GROUP BY p.id,
     				     p.title,
     					 p.author_id ,
     					 p.body,
     					 p.create_date,
     					 p.upd_date,
-    					 p.is_commented`
+    					 p.is_commented
+				  ORDER BY p.upd_date DESC`
 	rows, err := db.db.Query(likesStmt, userId)
 
 	if err != nil {

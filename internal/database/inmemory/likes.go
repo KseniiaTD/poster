@@ -9,6 +9,8 @@ func (db *inMemoryDB) UpdPostLikes(ctx context.Context, authorId int, postId int
 	pl := postLike{authorId: authorId, postId: postId}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	value, ok := db.postLikes[pl]
 	if !ok || value != isLike {
 		db.postLikes[pl] = isLike
@@ -33,7 +35,6 @@ func (db *inMemoryDB) UpdPostLikes(ctx context.Context, authorId int, postId int
 			db.posts[postId] = p
 		}
 	}
-	db.mu.Unlock()
 
 	return nil
 }
@@ -41,6 +42,8 @@ func (db *inMemoryDB) UpdCommentLikes(ctx context.Context, authorId int, comment
 	cl := commentLike{authorId: authorId, commentId: commentId}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	value, ok := db.commentLikes[cl]
 	if !ok || value != isLike {
 		db.commentLikes[cl] = isLike
@@ -65,7 +68,6 @@ func (db *inMemoryDB) UpdCommentLikes(ctx context.Context, authorId int, comment
 			db.comments[commentId] = c
 		}
 	}
-	db.mu.Unlock()
 
 	return nil
 }

@@ -11,7 +11,6 @@ import (
 )
 
 func (db *inMemoryDB) CreateComment(ctx context.Context, newComment model.NewCommentInput) (int, error) {
-
 	var parentIdInt int
 	var err error
 	if newComment.ParentID == nil {
@@ -34,16 +33,19 @@ func (db *inMemoryDB) CreateComment(ctx context.Context, newComment model.NewCom
 	}
 
 	c := comment{
-		parentId:   parentIdInt,
-		postId:     postIdInt,
-		authorId:   authorIdInt,
-		body:       newComment.Body,
-		createDate: time.Now(),
-		updDate:    time.Now(),
-		isDeleted:  false,
+		parentId:      parentIdInt,
+		postId:        postIdInt,
+		authorId:      authorIdInt,
+		body:          newComment.Body,
+		createDate:    time.Now(),
+		updDate:       time.Now(),
+		isDeleted:     false,
+		childComments: make(map[int]struct{}, 0),
 	}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	id := db.commentId
 	c.id = id
 	db.comments[id] = c
@@ -52,11 +54,11 @@ func (db *inMemoryDB) CreateComment(ctx context.Context, newComment model.NewCom
 	p := db.posts[postIdInt]
 	p.comments[id] = struct{}{}
 	db.posts[postIdInt] = p
-
-	parent := db.comments[parentIdInt]
-	parent.childComments[id] = struct{}{}
-	db.comments[parentIdInt] = parent
-
+	if parentIdInt > 0 {
+		parent := db.comments[parentIdInt]
+		parent.childComments[id] = struct{}{}
+		db.comments[parentIdInt] = parent
+	}
 	s, ok := db.subscriptions[postIdInt]
 	if ok {
 		for _, v := range s.subsribers {
@@ -67,7 +69,6 @@ func (db *inMemoryDB) CreateComment(ctx context.Context, newComment model.NewCom
 		db.subscriptions[postIdInt] = s
 	}
 
-	db.mu.Unlock()
 	return id, nil
 }
 func (db *inMemoryDB) UpdateComment(ctx context.Context, comment model.UpdCommentInput) (int, error) {
@@ -79,6 +80,7 @@ func (db *inMemoryDB) UpdateComment(ctx context.Context, comment model.UpdCommen
 	}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
 	c, ok := db.comments[commentIdInt]
 	if !ok {
 		return 0, errors.New("comment not found")
@@ -86,12 +88,14 @@ func (db *inMemoryDB) UpdateComment(ctx context.Context, comment model.UpdCommen
 	c.body = comment.Body
 	c.updDate = time.Now()
 	db.comments[commentIdInt] = c
-	db.mu.Unlock()
+
 	return commentIdInt, nil
 }
 
 func (db *inMemoryDB) DeleteComment(ctx context.Context, id int) (int, error) {
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	c, ok := db.comments[id]
 	if !ok {
 		return 0, errors.New("post not found")
@@ -110,7 +114,7 @@ func (db *inMemoryDB) DeleteComment(ctx context.Context, id int) (int, error) {
 	parent := db.comments[parentId]
 	delete(parent.childComments, id)
 	db.comments[parentId] = parent
-	db.mu.Unlock()
+
 	return id, nil
 }
 
@@ -119,6 +123,9 @@ func (db *inMemoryDB) GetComments(ctx context.Context, postId int, commentId int
 	if !ok {
 		return nil, errors.New("post not found")
 	}
+
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 
 	comments := make([]comment, 0, len(p.comments))
 	for k := range p.comments {
@@ -165,15 +172,6 @@ func (db *inMemoryDB) GetComments(ctx context.Context, postId int, commentId int
 			childcommentsPerPage[firstComment.parentId] = firstComment
 		}
 	}
-
-	/*commentsRes := make([]comment, 0, len(commentsPerPage)+len(childcommentsPerPage))
-	for _, k := range commentsPerPage {
-		commentsRes = append(commentsRes, k)
-		value, ok := childcommentsPerPage[k.id]
-		if ok {
-			commentsRes = append(commentsRes, value)
-		}
-	}*/
 
 	commentModelRes := make([]*model.Comment, 0, len(commentsPerPage))
 
@@ -224,5 +222,4 @@ func (db *inMemoryDB) GetComments(ctx context.Context, postId int, commentId int
 	}
 
 	return commentModelRes, nil
-
 }

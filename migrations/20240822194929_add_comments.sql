@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.comments
         ON UPDATE CASCADE
         ON DELETE NO ACTION
         NOT VALID,
-	CONSTRAINT fk_post_post FOREIGN KEY (post_id)
+	CONSTRAINT fk_comment_comment FOREIGN KEY (parent_id)
         REFERENCES public.comments (id) MATCH SIMPLE
         ON UPDATE CASCADE
         ON DELETE NO ACTION
@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS public.comments
         ON DELETE NO ACTION
         NOT VALID
 );
+
+CREATE INDEX ind_author_by_comments
+ON public.comments (author_id);
+
+CREATE INDEX ind_parent_by_comments
+ON public.comments (parent_id);
+
+CREATE INDEX ind_post_by_comments
+ON public.comments (post_id);
 
 ALTER TABLE IF EXISTS public.comments
     OWNER to pguser;

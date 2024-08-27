@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS public.posts
         NOT VALID
 );
 
+CREATE INDEX ind_author_by_posts
+ON public.posts (author_id);
 
 ALTER TABLE IF EXISTS public.posts
     OWNER to pguser;

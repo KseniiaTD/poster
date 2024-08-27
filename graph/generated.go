@@ -74,8 +74,6 @@ type ComplexityRoot struct {
 		DeleteComment      func(childComplexity int, id string) int
 		DeletePost         func(childComplexity int, id string) int
 		DeleteSubscription func(childComplexity int, subscr model.SubscrInput) int
-		GetCommentLikes    func(childComplexity int, comment string) int
-		GetPostLikes       func(childComplexity int, post string) int
 		UpdateComment      func(childComplexity int, comment model.UpdCommentInput) int
 		UpdatePost         func(childComplexity int, post model.UpdPostInput) int
 	}
@@ -93,8 +91,10 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Comments func(childComplexity int, postID int, commentID *int, page *int, perPage *int) int
-		Posts    func(childComplexity int, userID int) int
+		Comments        func(childComplexity int, postID int, commentID *int, page *int, perPage *int) int
+		GetCommentLikes func(childComplexity int, comment string) int
+		GetPostLikes    func(childComplexity int, post string) int
+		Posts           func(childComplexity int, userID int) int
 	}
 
 	Rating struct {
@@ -131,12 +131,12 @@ type MutationResolver interface {
 	DeleteComment(ctx context.Context, id string) (*string, error)
 	AddPostLike(ctx context.Context, likes model.NewPostLikeInput) (*string, error)
 	AddCommentLike(ctx context.Context, likes model.NewCommentLikeInput) (*string, error)
-	GetPostLikes(ctx context.Context, post string) (*model.Rating, error)
-	GetCommentLikes(ctx context.Context, comment string) (*model.Rating, error)
 }
 type QueryResolver interface {
 	Posts(ctx context.Context, userID int) ([]*model.Post, error)
 	Comments(ctx context.Context, postID int, commentID *int, page *int, perPage *int) ([]*model.Comment, error)
+	GetPostLikes(ctx context.Context, post string) (*model.Rating, error)
+	GetCommentLikes(ctx context.Context, comment string) (*model.Rating, error)
 }
 type SubscriptionResolver interface {
 	CheckComments(ctx context.Context, subscr model.Subscr) (<-chan int, error)
@@ -346,30 +346,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.DeleteSubscription(childComplexity, args["subscr"].(model.SubscrInput)), true
 
-	case "Mutation.getCommentLikes":
-		if e.complexity.Mutation.GetCommentLikes == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_getCommentLikes_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.GetCommentLikes(childComplexity, args["comment"].(string)), true
-
-	case "Mutation.getPostLikes":
-		if e.complexity.Mutation.GetPostLikes == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_getPostLikes_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.GetPostLikes(childComplexity, args["post"].(string)), true
-
 	case "Mutation.updateComment":
 		if e.complexity.Mutation.UpdateComment == nil {
 			break
@@ -468,6 +444,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Comments(childComplexity, args["postId"].(int), args["commentId"].(*int), args["page"].(*int), args["perPage"].(*int)), true
+
+	case "Query.getCommentLikes":
+		if e.complexity.Query.GetCommentLikes == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getCommentLikes_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetCommentLikes(childComplexity, args["comment"].(string)), true
+
+	case "Query.getPostLikes":
+		if e.complexity.Query.GetPostLikes == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getPostLikes_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetPostLikes(childComplexity, args["post"].(string)), true
 
 	case "Query.posts":
 		if e.complexity.Query.Posts == nil {
@@ -855,36 +855,6 @@ func (ec *executionContext) field_Mutation_deleteSubscription_args(ctx context.C
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_getCommentLikes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["comment"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["comment"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_getPostLikes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["post"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("post"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["post"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_updateComment_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -969,6 +939,36 @@ func (ec *executionContext) field_Query_comments_args(ctx context.Context, rawAr
 		}
 	}
 	args["perPage"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getCommentLikes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["comment"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["comment"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getPostLikes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["post"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("post"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["post"] = arg0
 	return args, nil
 }
 
@@ -2084,122 +2084,6 @@ func (ec *executionContext) fieldContext_Mutation_addCommentLike(ctx context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_getPostLikes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_getPostLikes(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().GetPostLikes(rctx, fc.Args["post"].(string))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.Rating)
-	fc.Result = res
-	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_getPostLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "likes":
-				return ec.fieldContext_Rating_likes(ctx, field)
-			case "dislikes":
-				return ec.fieldContext_Rating_dislikes(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Rating", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_getPostLikes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_getCommentLikes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_getCommentLikes(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().GetCommentLikes(rctx, fc.Args["comment"].(string))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.Rating)
-	fc.Result = res
-	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_getCommentLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "likes":
-				return ec.fieldContext_Rating_likes(ctx, field)
-			case "dislikes":
-				return ec.fieldContext_Rating_dislikes(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Rating", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_getCommentLikes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Post_id(ctx context.Context, field graphql.CollectedField, obj *model.Post) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Post_id(ctx, field)
 	if err != nil {
@@ -2732,6 +2616,122 @@ func (ec *executionContext) fieldContext_Query_comments(ctx context.Context, fie
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_comments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getPostLikes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getPostLikes(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetPostLikes(rctx, fc.Args["post"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Rating)
+	fc.Result = res
+	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getPostLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "likes":
+				return ec.fieldContext_Rating_likes(ctx, field)
+			case "dislikes":
+				return ec.fieldContext_Rating_dislikes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Rating", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getPostLikes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getCommentLikes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getCommentLikes(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetCommentLikes(rctx, fc.Args["comment"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Rating)
+	fc.Result = res
+	return ec.marshalORating2ᚖgithubᚗcomᚋKseniiaTDᚋposterᚋgraphᚋmodelᚐRating(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getCommentLikes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "likes":
+				return ec.fieldContext_Rating_likes(ctx, field)
+			case "dislikes":
+				return ec.fieldContext_Rating_dislikes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Rating", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getCommentLikes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5741,14 +5741,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addCommentLike(ctx, field)
 			})
-		case "getPostLikes":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_getPostLikes(ctx, field)
-			})
-		case "getCommentLikes":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_getCommentLikes(ctx, field)
-			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5893,6 +5885,44 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_comments(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getPostLikes":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getPostLikes(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getCommentLikes":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getCommentLikes(ctx, field)
 				return res
 			}
 

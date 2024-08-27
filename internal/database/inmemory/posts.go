@@ -24,24 +24,24 @@ func (db *inMemoryDB) CreatePost(ctx context.Context, newPost model.NewPostInput
 		updDate:     time.Now(),
 		isDeleted:   false,
 		isCommented: newPost.IsCommented,
+		comments:    make(map[int]struct{}),
 	}
 
 	db.mu.Lock()
-	id := db.postId
-	p.id = id
-	db.posts[id] = p
-	db.postId++
+	defer db.mu.Unlock()
 
-	u := db.users[authorIdInt]
+	id := db.postId
+	u, ok := db.users[authorIdInt]
+	if !ok {
+		return 0, errors.New("user not found")
+	}
+
 	u.posts[id] = struct{}{}
 	db.users[authorIdInt] = u
 
-	/*newC := newPostComments{
-		postId:      id,
-		commentList: []int{},
-	}
-	db.newComments[id] = newC*/
-	db.mu.Unlock()
+	p.id = id
+	db.posts[id] = p
+	db.postId++
 	return id, nil
 }
 
@@ -54,6 +54,8 @@ func (db *inMemoryDB) UpdatePost(ctx context.Context, post model.UpdPostInput) (
 	}
 
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	p, ok := db.posts[postIdInt]
 	if !ok {
 		return 0, errors.New("post not found")
@@ -74,12 +76,12 @@ func (db *inMemoryDB) UpdatePost(ctx context.Context, post model.UpdPostInput) (
 	p.updDate = time.Now()
 
 	db.posts[postIdInt] = p
-	db.mu.Unlock()
 	return postIdInt, nil
 }
 func (db *inMemoryDB) DeletePost(ctx context.Context, id int) (int, error) {
-
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	p, ok := db.posts[id]
 	if !ok {
 		return 0, errors.New("post not found")
@@ -93,7 +95,7 @@ func (db *inMemoryDB) DeletePost(ctx context.Context, id int) (int, error) {
 	u := db.users[authorId]
 	delete(u.posts, id)
 	db.users[authorId] = u
-	db.mu.Unlock()
+
 	return id, nil
 }
 
@@ -102,6 +104,9 @@ func (db *inMemoryDB) GetPosts(ctx context.Context, userId int) ([]*model.Post, 
 	if !ok {
 		return nil, errors.New("user not found")
 	}
+
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 
 	posts := make([]post, 0, len(u.posts))
 	for k := range u.posts {

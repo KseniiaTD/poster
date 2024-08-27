@@ -19,13 +19,14 @@ type commentLike struct {
 }
 
 /*type newPostComments struct {
-	postId      int
-	commentList []int
-	subscribers map[int]struct{}
+  postId      int
+  commentList []int
+  subscribers map[int]struct{}
 }*/
 
 type subscription struct {
 	userId      int
+	id          int
 	createDate  time.Time
 	updDate     time.Time
 	isDeleted   bool
@@ -82,27 +83,38 @@ type InMemoryDatabase interface {
 }
 
 type inMemoryDB struct {
-	users         map[int]user
-	userId        int
-	posts         map[int]post
-	postId        int
-	comments      map[int]comment
-	commentId     int
-	postLikes     map[postLike]bool
-	commentLikes  map[commentLike]bool
-	subscriptions map[int]subscriptionPosts
+	users          map[int]user
+	userId         int
+	posts          map[int]post
+	postId         int
+	comments       map[int]comment
+	commentId      int
+	postLikes      map[postLike]bool
+	commentLikes   map[commentLike]bool
+	subscriptions  map[int]subscriptionPosts
+	subscriptionId int
+	loginUniq      map[string]struct{}
+	phoneUniq      map[string]struct{}
+	emailUniq      map[string]struct{}
 	//newComments   map[int]newPostComments
 	mu sync.RWMutex
 }
 
 func New() InMemoryDatabase {
 	return &inMemoryDB{
-		users:         make(map[int]user, 0),
-		posts:         make(map[int]post, 0),
-		comments:      make(map[int]comment, 0),
-		postLikes:     make(map[postLike]bool, 0),
-		commentLikes:  make(map[commentLike]bool, 0),
-		subscriptions: make(map[int]subscriptionPosts, 0),
+		users:          make(map[int]user, 0),
+		posts:          make(map[int]post, 0),
+		comments:       make(map[int]comment, 0),
+		postLikes:      make(map[postLike]bool, 0),
+		commentLikes:   make(map[commentLike]bool, 0),
+		subscriptions:  make(map[int]subscriptionPosts, 0),
+		userId:         1,
+		postId:         1,
+		commentId:      1,
+		subscriptionId: 1,
+		loginUniq:      make(map[string]struct{}, 0),
+		phoneUniq:      make(map[string]struct{}, 0),
+		emailUniq:      make(map[string]struct{}, 0),
 		//newComments:   make(map[int]newPostComments, 0),
 	}
 }
